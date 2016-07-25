@@ -1,0 +1,15 @@
+{
+    "name": "petermolnar/wp-extraexif",
+    "description": "Autofill content and tags from featured image EXIF & IPTC",
+    "require": {
+        "php": ">=5.3.0",
+    },
+    "license": "GPLv3",
+    "authors": [
+        {
+            "name": "Peter Molnar",
+            "email": "hello@petermolnar.net",
+            "homepage": "https://petermolnar.net"
+        }
+    ]
+}

@@ -35,7 +35,8 @@ namespace WP_EXTRAEXIF;
  *
  */
 function defaults() {
-	return array (
+	// hardcoded
+	$config = array (
 		// exiftool value => store as meta key
 		'LensID'       => 'lens',
 		'GPSLatitude'  => 'geo_latitude',
@@ -43,8 +44,19 @@ function defaults() {
 		'GPSAltitude'  => 'geo_altitude',
 		'Title'        => 'title',
 	);
-}
 
+	$ini = dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'config.ini';
+	if ( file_exists ( $ini ) ) {
+		$config = array_merge ( $config, parse_ini_file( $ini ) );
+	}
+
+	$current = \get_option( __NAMESPACE__ );
+
+	if ( $current != $config )
+		\update_option( __NAMESPACE__, $config );
+
+	return $config;
+}
 
 /**
  * activate hook
@@ -243,15 +255,3 @@ function debug( $message, $level = LOG_NOTICE ) {
 
 	return error_log( "{$parent}: {$message}" );
 }
-
-/*
-function ini2conf() {
-	$config = dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'config.ini';
-	if ( !file_exists ( $config ) )
-		return defaults();
-
-	$params = parse_ini_file( $config );
-	\update_option( __NAMESPACE__, $params, true );
-	return $params;
-}
-*/

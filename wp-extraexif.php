@@ -3,7 +3,7 @@
 Plugin Name: wp-extraexif
 Plugin URI: https://github.com/petermolnar/wp-extraexif
 Description: Read extra EXIF for images with exiftool
-Version: 0.1
+Version: 0.2
 Author: Peter Molnar <hello@petermolnar.net>
 Author URI: http://petermolnar.net/
 License: GPLv3
@@ -30,6 +30,9 @@ namespace WP_EXTRAEXIF;
 \add_action( 'init', 'WP_EXTRAEXIF\init' );
 \register_activation_hook( __FILE__ , '\WP_EXTRAEXIF\plugin_activate' );
 \register_deactivation_hook( __FILE__ , '\WP_EXTRAEXIF\plugin_deactivate' );
+
+define ( 'WP_EXTRAEXIF\CACHEDIR', \WP_CONTENT_DIR . DIRECTORY_SEPARATOR.
+	'cache' . DIRECTORY_SEPARATOR . 'exif' . DIRECTORY_SEPARATOR );
 
 /**
  *
@@ -71,6 +74,13 @@ function plugin_activate() {
 	if ( true !== $test )
 		die ( $test );
 
+	$dirs = [ CACHEDIR ];
+	foreach ( $dirs as $dir ) {
+		if ( ! is_dir( $dir ) ) {
+			if ( ! mkdir( $dir ) )
+				die( "failed to create {$dir}" );
+		}
+	}
 }
 
 /**
@@ -85,6 +95,14 @@ function plugin_deactivate() {
  */
 function init() {
 	add_filter( 'wp_read_image_metadata', 'WP_EXTRAEXIF\read_extra_exif', 1, 3 );
+
+	$dirs = [ CACHEDIR ];
+	foreach ( $dirs as $dir ) {
+		if ( ! is_dir( $dir ) ) {
+			if ( ! mkdir( $dir ) )
+				debug( "failed to create {$dir}", 4 );
+		}
+	}
 }
 
 function test_exiftool () {
@@ -140,7 +158,7 @@ function read_extra_exif ( $meta, $path ='', $sourceImageType = '' ) {
 	$args = join(' -', $args);
 	$cmd = "exiftool -s -{$args} {$path}";
 
-	debug("Extracting extra EXIF for {$path} with command {$cmd}", 7 );
+	//debug("Extracting extra EXIF for {$path} with command {$cmd}", 7 );
 	exec( $cmd, $exif, $retval);
 
 	if ($retval != 0 ) {
@@ -160,10 +178,13 @@ function read_extra_exif ( $meta, $path ='', $sourceImageType = '' ) {
 	}
 
 	if ( ! empty( $metaextra ) ) {
-		debug ( "Adding extra EXIF", 7);
-		debug ( $metaextra, 7 );
+		//debug ( "Adding extra EXIF", 7);
+		//debug ( $metaextra, 7 );
 		$meta = array_merge($meta, $metaextra);
 	}
+
+	//debug ( $path );
+	exif_cache( $path );
 
 	return $meta;
 }
@@ -193,6 +214,101 @@ function exif_gps2alt ( $string ) {
 	if ( stristr( $string, 'below') )
 		$alt = $alt * -1;
 	return $alt;
+}
+
+function exif_cache( $jpg ) {
+
+	if ( ! is_file( $jpg ) ) {
+		debug( "nonexistend JPG file at {$jpg}", 4 );
+		return;
+	}
+
+	$hash = md5 ( $jpg );
+	$cached = CACHEDIR . $hash;
+	$img_timestamp = @filemtime ( $jpg );
+
+	if ( is_file( $cached  ) ) {
+		$cache_timestamp = @filemtime ( $cached );
+		if ( $cache_timestamp == $img_timestamp ) {
+			//debug( "EXIF cache is present for {$jpg}", 7 );
+			return json_decode ( file_get_contents( $cached ), true );
+		}
+	}
+
+	$filters = [
+		'Make',
+		'Camera Model Name',
+		'Aperture',
+		'GPS Altitude',
+		'GPS Latitude',
+		'GPS Longitude',
+		'Lens ID',
+		'Shutter Speed',
+		'Field Of View',
+		'Focal Length',
+		'Hyperfocal Distance',
+		'ISO',
+		'Create Date',
+		'Copyright Notice',
+	 ];
+
+	 $merges = [
+		'Shutter Speed' => 'Exposure Time',
+		'Aperture' => 'F Number',
+	 ];
+
+	 $mapping = [
+		'Make' => 'make',
+		'Camera Model Name' => 'camera',
+		'Aperture' => 'aperture',
+		'GPS Altitude' => 'geo_altitude',
+		'GPS Latitude' => 'geo_latitude',
+		'GPS Longitude' => 'geo_longitude',
+		'Lens ID' => 'lens',
+		'Shutter Speed' => 'shutter_speed',
+		'Field Of View' => 'field_of_view',
+		'Focal Length' => 'focal_length',
+		'Hyperfocal Distance' => 'focus_distance',
+		'ISO' => 'iso',
+		'Create Date' => 'date',
+		'Copyright Notice' => 'copyright',
+	 ];
+
+	$cmd = "exiftool {$jpg}";
+	exec( $cmd, $exif_raw, $retval);
+
+	if ($retval != 0 )
+		die( "exiftool failed, exited with {$retval} and {$exif}" );
+
+	foreach ( $exif_raw as $l ) {
+		preg_match( '/^(.*?)\s+:\s+(.*)$/', $l, $data );
+		if ( empty( $data[0]) || empty( $data[1] ) || empty( $data[2] ) )
+			continue;
+
+		if ( $data[1] == 'GPS Latitude' || $data[1] == 'GPS Longitude' )
+			$data[2] = exif_gps2dec( $data[2] );
+		elseif ( $data[1] == 'GPS Altitude' )
+			$data[2] = exif_gps2alt( $data[2] );
+
+		$exif [ $data[1] ] = $data[2];
+	}
+
+	$r = array();
+	foreach ( $filters as $filter ) {
+		if ( isset( $exif[ $filter ] ) )
+			$r[ $mapping [ $filter ] ] = $exif[ $filter ];
+		elseif ( isset( $merges[ $filter ] )
+			&& isset( $exif[ $merges[ $filter ] ] ) )
+			$r[ $mapping [ $filter ] ] = $exif[ $merges[ $filter ] ];
+	}
+
+	ksort( $r );
+
+	file_put_contents( $cached , json_encode( $r, JSON_PRETTY_PRINT ) );
+	touch( $cached, $img_timestamp );
+	debug( "EXIF cache is created for {$jpg}", 6 );
+
+	return $r;
 }
 
 

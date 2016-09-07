@@ -2,8 +2,8 @@
 /*
 Plugin Name: wp-extraexif
 Plugin URI: https://github.com/petermolnar/wp-extraexif
-Description: Read extra EXIF for images with exiftool
-Version: 0.2
+Description: Read EXIF for images with cli `exiftool`
+Version: 0.4
 Author: Peter Molnar <hello@petermolnar.net>
 Author URI: http://petermolnar.net/
 License: GPLv3
@@ -29,37 +29,10 @@ namespace WP_EXTRAEXIF;
 
 \add_action( 'init', 'WP_EXTRAEXIF\init' );
 \register_activation_hook( __FILE__ , '\WP_EXTRAEXIF\plugin_activate' );
-\register_deactivation_hook( __FILE__ , '\WP_EXTRAEXIF\plugin_deactivate' );
+//\register_deactivation_hook( __FILE__ , '\WP_EXTRAEXIF\plugin_deactivate' );
 
-define ( 'WP_EXTRAEXIF\CACHEDIR', \WP_CONTENT_DIR . DIRECTORY_SEPARATOR.
+define ( 'WP_EXTRAEXIF\CACHE', \WP_CONTENT_DIR . DIRECTORY_SEPARATOR.
 	'cache' . DIRECTORY_SEPARATOR . 'exif' . DIRECTORY_SEPARATOR );
-
-/**
- *
- */
-function defaults() {
-	// hardcoded
-	$config = array (
-		// exiftool value => store as meta key
-		'LensID'       => 'lens',
-		'GPSLatitude'  => 'geo_latitude',
-		'GPSLongitude' => 'geo_longitude',
-		'GPSAltitude'  => 'geo_altitude',
-		'Title'        => 'title',
-	);
-
-	$ini = dirname( __FILE__ ) . DIRECTORY_SEPARATOR . 'config.ini';
-	if ( file_exists ( $ini ) ) {
-		$config = array_merge ( $config, parse_ini_file( $ini ) );
-	}
-
-	$current = \get_option( __NAMESPACE__ );
-
-	if ( $current != $config )
-		\update_option( __NAMESPACE__, $config );
-
-	return $config;
-}
 
 /**
  * activate hook
@@ -74,7 +47,7 @@ function plugin_activate() {
 	if ( true !== $test )
 		die ( $test );
 
-	$dirs = [ CACHEDIR ];
+	$dirs = [ CACHE ];
 	foreach ( $dirs as $dir ) {
 		if ( ! is_dir( $dir ) ) {
 			if ( ! mkdir( $dir ) )
@@ -84,19 +57,12 @@ function plugin_activate() {
 }
 
 /**
- * activate hook
- */
-function plugin_deactivate() {
-	\delete_option( __NAMESPACE__ );
-}
-
-/**
  *
  */
 function init() {
 	add_filter( 'wp_read_image_metadata', 'WP_EXTRAEXIF\read_extra_exif', 1, 3 );
 
-	$dirs = [ CACHEDIR ];
+	$dirs = [ CACHE ];
 	foreach ( $dirs as $dir ) {
 		if ( ! is_dir( $dir ) ) {
 			if ( ! mkdir( $dir ) )
@@ -105,6 +71,10 @@ function init() {
 	}
 }
 
+/**
+ * check the existence and executability of exiftool
+ *
+ */
 function test_exiftool () {
 	if ( ! function_exists( 'exec' ) )
 		return "This plugin requires `exec` function which is not available.";
@@ -141,49 +111,6 @@ function read_extra_exif ( $meta, $path ='', $sourceImageType = '' ) {
 		return $meta;
 	}
 
-	$extra = \get_option( __NAMESPACE__, defaults() );
-
-	$args = $metaextra = array();
-
-	foreach ($extra as $exiftoolID => $metaid ) {
-		// only try to get the missing
-		if ( ! isset( $meta[ $metaid ]) ) {
-			$args[] = $exiftoolID;
-		}
-	}
-
-	if ( empty( $args ) )
-		return $meta;
-
-	$args = join(' -', $args);
-	$cmd = "exiftool -s -{$args} {$path}";
-
-	//debug("Extracting extra EXIF for {$path} with command {$cmd}", 7 );
-	exec( $cmd, $exif, $retval);
-
-	if ($retval != 0 ) {
-		debug("Extracting extra EXIF failed with error code ${retval}", 4 );
-		return $meta;
-	}
-
-	foreach ( $exif as $cntr => $data ) {
-		$data = array_map( 'trim', explode (' : ', $data ) );
-
-		if ( $data[0] == 'GPSLatitude' || $data[0] == 'GPSLongitude' )
-				$data[1] = exif_gps2dec( $data[1] );
-		elseif ( $data[0] == 'GPSAltitude' )
-			$data[1] = exif_gps2alt( $data[1] );
-
-		$metaextra[ $extra[ $data[0] ] ] = $data[1];
-	}
-
-	if ( ! empty( $metaextra ) ) {
-		//debug ( "Adding extra EXIF", 7);
-		//debug ( $metaextra, 7 );
-		$meta = array_merge($meta, $metaextra);
-	}
-
-	//debug ( $path );
 	exif_cache( $path );
 
 	return $meta;
@@ -216,15 +143,33 @@ function exif_gps2alt ( $string ) {
 	return $alt;
 }
 
+/**
+ *
+ */
+function clear_cache() {
+	$list = scandir( CACHE );
+
+	foreach ($list as $key => $name ) {
+		$path = realpath( CACHE . $name );
+
+		if ( is_file( $path ) && ! in_array ( $name, array( '.', '..' ) ) ) {
+			unlink( $path );
+		}
+	}
+}
+
+/**
+ *
+ */
 function exif_cache( $jpg ) {
 
 	if ( ! is_file( $jpg ) ) {
-		debug( "nonexistend JPG file at {$jpg}", 4 );
+		debug( "nonexistent JPG file at {$jpg}", 4 );
 		return;
 	}
 
 	$hash = md5 ( $jpg );
-	$cached = CACHEDIR . $hash;
+	$cached = CACHE . $hash;
 	$img_timestamp = @filemtime ( $jpg );
 
 	if ( is_file( $cached  ) ) {
@@ -251,11 +196,13 @@ function exif_cache( $jpg ) {
 		'Create Date',
 		'Copyright Notice',
 	 ];
+	 $filters = \apply_filters( 'wp_extraexif_list', $filters );
 
 	 $merges = [
 		'Shutter Speed' => 'Exposure Time',
 		'Aperture' => 'F Number',
 	 ];
+	 $merges = \apply_filters( 'wp_extraexif_merges', $merges );
 
 	 $mapping = [
 		'Make' => 'make',
@@ -273,6 +220,7 @@ function exif_cache( $jpg ) {
 		'Create Date' => 'date',
 		'Copyright Notice' => 'copyright',
 	 ];
+	 $mapping = \apply_filters( 'wp_extraexif_mapping', $mapping );
 
 	$cmd = "exiftool {$jpg}";
 	exec( $cmd, $exif_raw, $retval);

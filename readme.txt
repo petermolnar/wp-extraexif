@@ -2,7 +2,7 @@
 Contributors: cadeyrn
 Tags: exif, image, media
 Requires at least: 4.0
-Tested up to: 4.6
+Tested up to: 4.8
 Stable tag: 0.4
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
@@ -10,6 +10,14 @@ License URI: http://www.gnu.org/licenses/gpl-3.0.html
 A plugin that uses [exiftool](http://owl.phy.queensu.ca/~phil/exiftool/) to read EXIF values of an image.
 
 == Description ==
+
+The plugin expands the image meta by extracting data via exiftool. The default set of keywords is:
+
+`-MIMEType', '-FileType', '-FileName', '-ModifyDate', '-CreateDate', '-DateTimeOriginal', '-ImageHeight', '-ImageWidth', '-Aperture', '-FOV', '-ISO', '-FocalLength', '-FNumber', '-FocalLengthIn35mmFormat', '-ExposureTime', '-Copyright', '-Artist', '-Model', '-GPSLongitude#', '-GPSLatitude#', '-LensID'`
+
+which can be altered with the `wp_extraexif_exiftool_vars` filter (one argument, an array with the values above).
+
+Later on the extraced values live in the same place where the default, WordPress extraced EXIF lives and can be access from the same array.
 
 == Installation ==
 
@@ -25,6 +33,11 @@ Version numbering logic:
 * every A. indicates BIG changes.
 * every .B version indicates new features.
 * every ..C indicates bugfixes for A.B version.
+
+= 1.0 =
+*2017-07-14*
+
+Complete rewrite to get rid of cache files and to utilize exiftool better, than before.
 
 = 0.4 =
 *2016-09-07*

@@ -2,12 +2,14 @@
 Contributors: cadeyrn
 Tags: exif, image, media
 Requires at least: 4.0
-Tested up to: 4.8
-Stable tag: 0.4
+Tested up to: 4.8.1
+Stable tag: 1.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
-A plugin that uses [exiftool](http://owl.phy.queensu.ca/~phil/exiftool/) to read EXIF values of an image.
+A plugin that uses [exiftool](http://owl.phy.queensu.ca/~phil/exiftool/) to read and store extra EXIF values of an image, which WordPress can not on it's own, such as Lens name & ID, GPS location data, etc.
+
+It requires `exiftool` to be installed on the server.
 
 == Description ==
 
@@ -37,7 +39,7 @@ Version numbering logic:
 = 1.0 =
 *2017-07-14*
 
-Complete rewrite to get rid of cache files and to utilize exiftool better, than before.
+Complete rewrite to get rid of cache files, to utilize exiftool better, and to be PHP 5.2 compatible in order to push the plugin to the wordpress.org repository.
 
 = 0.4 =
 *2016-09-07*

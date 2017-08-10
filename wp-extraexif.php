@@ -42,9 +42,6 @@ function WP_EXTRAEXIF_plugin_activate() {
 		die("exiftool cannot be executed via `exec`. This plugin requires `exiftool` to be installed on the system and available in \$PATH variable; please talk to your system administrator.");
 }
 
-/**
- *
- */
 function WP_EXTRAEXIF_init() {
 	add_filter( 'wp_read_image_metadata', 'WP_EXTRAEXIF_read_meta', 1, 4 );
 }
@@ -59,7 +56,31 @@ function WP_EXTRAEXIF_run($current_meta, $file) {
 		return $current_meta;
 	}
 
-	$vars = array('-sort', '-json', '-MIMEType', '-FileType', '-FileName', '-ModifyDate', '-CreateDate', '-DateTimeOriginal', '-ImageHeight', '-ImageWidth', '-Aperture', '-FOV', '-ISO', '-FocalLength', '-FNumber', '-FocalLengthIn35mmFormat', '-ExposureTime', '-Copyright', '-Artist', '-Model', '-GPSLongitude#', '-GPSLatitude#', '-LensID');
+	$vars = array(
+			'-sort', 
+			'-json', 
+			'-MIMEType', 
+			'-FileType', 
+			'-FileName', 
+			'-ModifyDate', 
+			'-CreateDate', 
+			'-DateTimeOriginal', 
+			'-ImageHeight', 
+			'-ImageWidth', 
+			'-Aperture', 
+			'-FOV', 
+			'-ISO', 
+			'-FocalLength', 
+			'-FNumber', 
+			'-FocalLengthIn35mmFormat', 
+			'-ExposureTime', 
+			'-Copyright', 
+			'-Artist', 
+			'-Model', 
+			'-GPSLongitude#', 
+			'-GPSLatitude#', 
+			'-LensID'
+	);
 	$vars = apply_filters('wp_extraexif_exiftool_vars', $vars);
 	array_unshift($vars, 'exiftool');
 	array_push($vars, $file);
